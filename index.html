@@ -1,0 +1,544 @@
+import { useState, useRef, useCallback, useEffect } from "react";
+
+// ============================================================
+// MODIFIED FITZGERALD KEY COLORS
+// ============================================================
+const COLORS = {
+  pronoun:   { bg: "#FFD54F", text: "#212121", label: "Pronouns" },
+  verb:      { bg: "#66BB6A", text: "#212121", label: "Verbs" },
+  adjective: { bg: "#42A5F5", text: "#212121", label: "Adjectives" },
+  noun:      { bg: "#FFA726", text: "#212121", label: "Nouns" },
+  prep:      { bg: "#F06292", text: "#212121", label: "Prepositions & Social" },
+  question:  { bg: "#AB47BC", text: "#FFFFFF", label: "Questions" },
+  negation:  { bg: "#EF5350", text: "#FFFFFF", label: "Negation & Important" },
+  adverb:    { bg: "#8D6E63", text: "#FFFFFF", label: "Adverbs" },
+  determ:    { bg: "#BDBDBD", text: "#212121", label: "Determiners" },
+  blank:     { bg: "#FFFFFF", text: "#9E9E9E", label: "Blank / Fringe" },
+};
+
+// ============================================================
+// BOARD DATA — all 5 core boards (with emoji)
+// ============================================================
+const W = (word, cat, emoji) => ({ word, cat, emoji: emoji || "" });
+const B = () => ({ word: "", cat: "blank", emoji: "" });
+
+const BOARDS = [
+  {
+    id: "about-me",
+    title: "David's All About Me Core Board",
+    subtitle: "Personal identity & self-expression",
+    cols: 6,
+    grid: [
+      W("I","pronoun","🧑"),        W("want","verb","🤲"),          W("like","verb","👍"),         W("have","verb","🤝"),          W("more","adjective","➕"),     W("yes","negation","✅"),
+      W("you","pronoun","👉"),       W("help","verb","🆘"),          W("feel","verb","💭"),         W("am","verb","🟰"),            W("good","adjective","😊"),     W("no / not","negation","❌"),
+      W("my","pronoun","💛"),        W("eat","verb","🍽️"),          W("go","verb","➡️"),           W("play","verb","🎮"),          W("big","adjective","⬆️"),      W("stop","negation","🛑"),
+      W("what","question","❓"),     W("where","question","📍"),     W("please","prep","🙏"),       W("hi / bye","prep","👋"),      W("done","negation","🏁"),      W("again","adverb","🔄"),
+      W("Mexican food","noun","🌮"),W("video games","noun","🎮"),   W("my cats","noun","🐱"),      W("my kids","noun","👨‍👧‍👦"),  B(),                             B(),
+    ],
+    footer: "Row 5 = personalized fringe  |  Blank cells: add personal photos or symbols"
+  },
+  {
+    id: "uno",
+    title: "Uno Game -- Core Board",
+    subtitle: "Social / game play communication",
+    cols: 6,
+    grid: [
+      W("I","pronoun","🧑"),        W("want","verb","🤲"),          W("like","verb","👍"),         W("more","adjective","➕"),      W("yes","negation","✅"),       W("no / not","negation","❌"),
+      W("you","pronoun","👉"),       W("help","verb","🆘"),          W("go","verb","➡️"),           W("my turn","pronoun","🙋"),    W("your turn","pronoun","👉"),  W("stop","negation","🛑"),
+      W("my","pronoun","💛"),        W("play","verb","🎲"),          W("pick up","verb","👆"),      W("skip","verb","⏭️"),          W("win","verb","🏆"),           W("done","negation","🏁"),
+      W("fun","adjective","😄"),     W("again","adverb","🔄"),       W("draw","verb","🃏"),         W("reverse","verb","🔀"),       W("UNO!","negation","🎉"),      W("fast","adverb","⚡"),
+      W("card","noun","🃏"),         W("red","noun","🟥"),           W("blue","noun","🟦"),         W("green","noun","🟩"),         W("yellow","noun","🟨"),        W("wild","noun","🌈"),
+    ],
+    footer: "'my turn' / 'your turn' = sentence-in-one-button  |  Yell UNO! when you have one card left!"
+  },
+  {
+    id: "sandwich",
+    title: "Making a Sandwich -- Core Board",
+    subtitle: "Following a recipe / cooking activity",
+    cols: 6,
+    grid: [
+      W("I","pronoun","🧑"),        W("want","verb","🤲"),          W("need","verb","💡"),         W("more","adjective","➕"),      W("yes","negation","✅"),       W("no / not","negation","❌"),
+      W("you","pronoun","👉"),       W("help","verb","🆘"),          W("put","verb","⬇️"),          W("open","verb","📦"),          W("like","verb","👍"),           W("stop","negation","🛑"),
+      W("my","pronoun","💛"),        W("cut","verb","✂️"),           W("spread","verb","🧈"),       W("on","prep","🔛"),            W("yummy","adjective","😋"),    W("done","negation","🏁"),
+      W("please","prep","🙏"),       W("in","prep","📥"),            W("wash","verb","🧼"),         W("clean","adjective","✨"),     W("hot","adjective","🔥"),      W("cold","adjective","🧊"),
+      W("bread","noun","🍞"),        W("meat","noun","🥩"),          W("cheese","noun","🧀"),       W("lettuce","noun","🥬"),       W("plate","noun","🍽️"),        W("knife","noun","🔪"),
+    ],
+    footer: "Row 5 = sandwich-specific fringe nouns  |  Safety words (stop, hot) included for kitchen context"
+  },
+  {
+    id: "consent",
+    title: "Consent & Safety -- Core Board",
+    subtitle: "Expressing consent, refusal, and safety",
+    cols: 5,
+    grid: [
+      W("YES","negation","✅"),      W("NO","negation","❌"),        W("STOP","negation","🛑"),     W("HELP","negation","🆘"),      W("tell","verb","🗣️"),
+      W("I","pronoun","🧑"),         W("want","verb","🤲"),          W("don't want","negation","🚫"),W("like","verb","👍"),          W("don't like","negation","👎"),
+      W("my","pronoun","💛"),         W("feel","verb","💭"),          W("safe","adjective","🛡️"),   W("scared","adjective","😨"),   W("hurt","adjective","🤕"),
+      W("go away","verb","🚷"),       W("my body","noun","🧍"),      W("okay","adjective","👌"),    W("not okay","negation","⚠️"),  W("need","verb","💡"),
+      B(),                            B(),                            B(),                            B(),                            B(),
+    ],
+    footer: "Row 1 = high-priority safety words  |  Row 5 = blank for trusted adult names/photos"
+  },
+  {
+    id: "community",
+    title: "Community Participation -- Core Board",
+    subtitle: "Communication during community outings",
+    cols: 6,
+    grid: [
+      W("I","pronoun","🧑"),        W("want","verb","🤲"),          W("need","verb","💡"),         W("like","verb","👍"),           W("more","adjective","➕"),     W("yes","negation","✅"),
+      W("you","pronoun","👉"),       W("help","verb","🆘"),          W("go","verb","➡️"),           W("look","verb","👀"),          W("where","question","📍"),     W("no / not","negation","❌"),
+      W("my","pronoun","💛"),        W("please","prep","🙏"),        W("thank you","prep","🤝"),    W("hi","prep","👋"),            W("bye","prep","👋"),           W("stop","negation","🛑"),
+      W("in","prep","📥"),           W("out","prep","📤"),           W("here","adverb","📌"),       W("there","adverb","👉"),       W("this","determ","☝️"),        W("done","negation","🏁"),
+      W("store","noun","🏪"),        W("money","noun","💰"),         W("bus","noun","🚌"),          W("bathroom","noun","🚻"),      B(),                             B(),
+    ],
+    footer: "Row 3 = social/pragmatic words for unfamiliar partners  |  Blank cells for community-specific fringe"
+  },
+];
+
+// ============================================================
+// TTS HOOK
+// ============================================================
+function useSpeak() {
+  const speak = useCallback((text) => {
+    if (!text || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const clean = text.replace(/\s*\/\s*/g, " or ").replace(/--/g, "").replace(/!/g, "");
+    const u = new SpeechSynthesisUtterance(clean);
+    u.rate = 0.85;
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang.startsWith("en") && v.name.includes("Samantha"))
+      || voices.find(v => v.lang.startsWith("en") && v.localService)
+      || voices.find(v => v.lang.startsWith("en"));
+    if (preferred) u.voice = preferred;
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  const speakSentence = useCallback((words) => {
+    if (!words.length || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const text = words.join(" ").replace(/\s*\/\s*/g, " or ").replace(/!/g, "");
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.8;
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.lang.startsWith("en") && v.name.includes("Samantha"))
+      || voices.find(v => v.lang.startsWith("en") && v.localService)
+      || voices.find(v => v.lang.startsWith("en"));
+    if (preferred) u.voice = preferred;
+    window.speechSynthesis.speak(u);
+  }, []);
+
+  return { speak, speakSentence };
+}
+
+// ============================================================
+// CELL COMPONENT (with emoji)
+// ============================================================
+function Cell({ cell, onTap, size }) {
+  const c = COLORS[cell.cat] || COLORS.blank;
+  const isEmpty = !cell.word;
+  const [flash, setFlash] = useState(false);
+
+  const handleClick = () => {
+    if (isEmpty) return;
+    setFlash(true);
+    onTap(cell.word);
+    setTimeout(() => setFlash(false), 200);
+  };
+
+  const emojiFontSize = size === "sm" ? "18px" : size === "md" ? "22px" : "26px";
+  const wordFontSize = size === "sm" ? "10px" : size === "md" ? "12px" : "14px";
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={isEmpty}
+      style={{
+        backgroundColor: flash ? "#FFF" : c.bg,
+        color: c.text,
+        border: isEmpty ? "2px dashed #BDBDBD" : "2px solid rgba(0,0,0,0.12)",
+        borderRadius: "10px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "2px",
+        padding: "4px 2px",
+        cursor: isEmpty ? "default" : "pointer",
+        transition: "all 0.15s ease",
+        transform: flash ? "scale(0.92)" : "scale(1)",
+        boxShadow: flash ? "inset 0 0 0 3px rgba(26,35,126,0.4)" : "0 2px 5px rgba(0,0,0,0.12)",
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        textAlign: "center",
+        lineHeight: 1.15,
+        minHeight: 0,
+        opacity: isEmpty ? 0.35 : 1,
+        overflow: "hidden",
+      }}
+    >
+      {isEmpty ? (
+        <span style={{ fontSize: "20px", color: "#BDBDBD" }}>+</span>
+      ) : (
+        <>
+          <span style={{ fontSize: emojiFontSize, lineHeight: 1.1, flexShrink: 0 }}>
+            {cell.emoji}
+          </span>
+          <span style={{
+            fontSize: wordFontSize,
+            fontWeight: 800,
+            lineHeight: 1.15,
+            letterSpacing: "0.01em",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "100%",
+            padding: "0 1px",
+          }}>
+            {cell.word}
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
+// ============================================================
+// SENTENCE STRIP
+// ============================================================
+function SentenceStrip({ words, onClear, onSpeak, onRemoveLast }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "8px 12px",
+      backgroundColor: "#FFF",
+      borderRadius: "12px",
+      border: "2px solid #E0E0E0",
+      minHeight: "48px",
+      flexWrap: "wrap",
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        flex: 1,
+        flexWrap: "wrap",
+        minHeight: "32px",
+      }}>
+        {words.length === 0 ? (
+          <span style={{ color: "#9E9E9E", fontSize: "14px", fontStyle: "italic" }}>
+            Tap words to build a sentence...
+          </span>
+        ) : (
+          words.map((w, i) => (
+            <span key={i} style={{
+              backgroundColor: "#E3F2FD",
+              color: "#1565C0",
+              padding: "4px 10px",
+              borderRadius: "16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}>
+              {w}
+            </span>
+          ))
+        )}
+      </div>
+      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+        {words.length > 0 && (
+          <>
+            <button onClick={onRemoveLast} style={{
+              padding: "6px 12px", borderRadius: "8px", border: "1px solid #E0E0E0",
+              backgroundColor: "#FFF", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#757575"
+            }}>
+              Undo
+            </button>
+            <button onClick={onClear} style={{
+              padding: "6px 12px", borderRadius: "8px", border: "1px solid #E0E0E0",
+              backgroundColor: "#FFF", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#EF5350"
+            }}>
+              Clear
+            </button>
+            <button onClick={onSpeak} style={{
+              padding: "6px 14px", borderRadius: "8px", border: "none",
+              backgroundColor: "#1A237E", color: "#FFF", cursor: "pointer", fontSize: "13px", fontWeight: 700,
+              boxShadow: "0 2px 6px rgba(26,35,126,0.3)"
+            }}>
+              Speak
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// COLOR KEY LEGEND
+// ============================================================
+function ColorKey() {
+  const cats = ["pronoun","verb","adjective","noun","prep","question","negation","adverb","blank"];
+  return (
+    <div style={{
+      display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center", padding: "6px 0"
+    }}>
+      {cats.map(cat => {
+        const c = COLORS[cat];
+        return (
+          <div key={cat} style={{
+            display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#616161"
+          }}>
+            <div style={{
+              width: "14px", height: "14px", borderRadius: "3px",
+              backgroundColor: c.bg, border: "1px solid rgba(0,0,0,0.15)"
+            }} />
+            <span>{c.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// BOARD VIEW
+// ============================================================
+function BoardView({ board, onTapWord }) {
+  const rows = [];
+  for (let i = 0; i < board.grid.length; i += board.cols) {
+    rows.push(board.grid.slice(i, i + board.cols));
+  }
+  const cellSize = board.cols >= 6 ? "sm" : board.cols === 5 ? "md" : "lg";
+  const gap = board.cols >= 6 ? "5px" : "6px";
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "3px", minHeight: 0 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${board.cols}, 1fr)`,
+        gridTemplateRows: `repeat(${rows.length}, 1fr)`,
+        gap: gap,
+        flex: 1,
+        minHeight: 0,
+      }}>
+        {board.grid.map((cell, i) => (
+          <Cell key={`${board.id}-${i}`} cell={cell} onTap={onTapWord} size={cellSize} />
+        ))}
+      </div>
+      <p style={{
+        fontSize: "11px", color: "#9E9E9E", textAlign: "center",
+        margin: "2px 0 0 0", fontStyle: "italic"
+      }}>
+        {board.footer}
+      </p>
+    </div>
+  );
+}
+
+// ============================================================
+// NAV TABS
+// ============================================================
+function NavTabs({ boards, activeIdx, onChange }) {
+  const labels = [
+    { text: "All About Me", icon: "🧑" },
+    { text: "Uno Game", icon: "🃏" },
+    { text: "Sandwich", icon: "🥪" },
+    { text: "Consent & Safety", icon: "🛡️" },
+    { text: "Community", icon: "🏪" },
+  ];
+  return (
+    <div style={{
+      display: "flex", gap: "4px", overflowX: "auto", padding: "2px 0",
+      WebkitOverflowScrolling: "touch",
+    }}>
+      {boards.map((b, i) => (
+        <button
+          key={b.id}
+          onClick={() => onChange(i)}
+          style={{
+            padding: "6px 12px",
+            borderRadius: "20px",
+            border: i === activeIdx ? "2px solid #1A237E" : "2px solid #E0E0E0",
+            backgroundColor: i === activeIdx ? "#1A237E" : "#FFF",
+            color: i === activeIdx ? "#FFF" : "#616161",
+            fontSize: "12px",
+            fontWeight: 700,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+            transition: "all 0.2s ease",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
+          <span>{labels[i].icon}</span>
+          <span>{labels[i].text}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+export default function CoreBoardApp() {
+  const [activeBoard, setActiveBoard] = useState(0);
+  const [sentence, setSentence] = useState([]);
+  const [showIntro, setShowIntro] = useState(true);
+  const { speak, speakSentence } = useSpeak();
+
+  // Load voices on mount
+  useEffect(() => {
+    window.speechSynthesis?.getVoices();
+    const handler = () => window.speechSynthesis?.getVoices();
+    window.speechSynthesis?.addEventListener?.("voiceschanged", handler);
+    return () => window.speechSynthesis?.removeEventListener?.("voiceschanged", handler);
+  }, []);
+
+  const handleTapWord = useCallback((word) => {
+    speak(word);
+    setSentence(prev => [...prev, word]);
+  }, [speak]);
+
+  const handleClear = () => setSentence([]);
+  const handleRemoveLast = () => setSentence(prev => prev.slice(0, -1));
+  const handleSpeak = () => speakSentence(sentence);
+
+  const board = BOARDS[activeBoard];
+
+  // Title / intro screen
+  if (showIntro) {
+    return (
+      <div style={{
+        height: "100vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        background: "linear-gradient(135deg, #1A237E 0%, #283593 50%, #3949AB 100%)",
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+        padding: "24px",
+      }}>
+        <div style={{ textAlign: "center", maxWidth: "500px" }}>
+          <h1 style={{ color: "#FFF", fontSize: "40px", fontWeight: 800, margin: "0 0 8px 0", letterSpacing: "-0.5px" }}>
+            Learning Log 4
+          </h1>
+          <h2 style={{ color: "#BBDEFB", fontSize: "22px", fontWeight: 400, margin: "0 0 24px 0" }}>
+            Core Communication Boards
+          </h2>
+          <p style={{ color: "#90CAF9", fontSize: "14px", margin: "0 0 32px 0" }}>
+            ESP715 &nbsp;|&nbsp; David Lindberg &nbsp;|&nbsp; Spring 2026
+          </p>
+
+          {/* Color key */}
+          <div style={{
+            display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "6px", marginBottom: "32px"
+          }}>
+            {["pronoun","verb","adjective","noun","prep","question","negation","adverb"].map(cat => (
+              <div key={cat} style={{
+                display: "flex", alignItems: "center", gap: "5px",
+                backgroundColor: "rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: "12px"
+              }}>
+                <div style={{
+                  width: "12px", height: "12px", borderRadius: "3px",
+                  backgroundColor: COLORS[cat].bg
+                }} />
+                <span style={{ color: "#E8EAF6", fontSize: "11px" }}>{COLORS[cat].label}</span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowIntro(false)}
+            style={{
+              padding: "14px 40px",
+              borderRadius: "12px",
+              border: "none",
+              backgroundColor: "#FFF",
+              color: "#1A237E",
+              fontSize: "16px",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+              transition: "transform 0.15s",
+            }}
+            onMouseDown={e => e.currentTarget.style.transform = "scale(0.96)"}
+            onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+          >
+            Open Boards
+          </button>
+
+          <p style={{ color: "#7986CB", fontSize: "12px", marginTop: "20px" }}>
+            Tap any word to hear it spoken aloud. Build sentences, then press Speak.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      height: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      backgroundColor: "#F5F5F5",
+      overflow: "hidden",
+    }}>
+      {/* HEADER */}
+      <div style={{
+        padding: "10px 16px 6px",
+        backgroundColor: "#FFF",
+        borderBottom: "1px solid #E0E0E0",
+        flexShrink: 0,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+          <div>
+            <h1 style={{ fontSize: "18px", fontWeight: 800, color: "#1A237E", margin: 0, lineHeight: 1.2 }}>
+              {board.title}
+            </h1>
+            <p style={{ fontSize: "12px", color: "#757575", margin: "2px 0 0 0" }}>{board.subtitle}</p>
+          </div>
+          <button
+            onClick={() => { setShowIntro(true); setSentence([]); }}
+            style={{
+              padding: "6px 12px", borderRadius: "8px", border: "1px solid #E0E0E0",
+              backgroundColor: "#FFF", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#757575"
+            }}
+          >
+            Home
+          </button>
+        </div>
+        <NavTabs boards={BOARDS} activeIdx={activeBoard} onChange={(i) => { setActiveBoard(i); setSentence([]); }} />
+      </div>
+
+      {/* SENTENCE STRIP */}
+      <div style={{ padding: "8px 16px 4px", flexShrink: 0 }}>
+        <SentenceStrip
+          words={sentence}
+          onClear={handleClear}
+          onSpeak={handleSpeak}
+          onRemoveLast={handleRemoveLast}
+        />
+      </div>
+
+      {/* BOARD GRID */}
+      <div style={{ flex: 1, padding: "4px 16px 6px", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+        <BoardView board={board} onTapWord={handleTapWord} />
+      </div>
+
+      {/* FOOTER COLOR KEY */}
+      <div style={{
+        padding: "4px 16px 8px",
+        backgroundColor: "#FFF",
+        borderTop: "1px solid #E0E0E0",
+        flexShrink: 0,
+      }}>
+        <ColorKey />
+      </div>
+    </div>
+  );
+}
