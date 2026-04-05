@@ -124,35 +124,63 @@
     ];
 
     /* ============================================================
-       TTS
+       TTS — Chrome-compatible (voices load async)
        ============================================================ */
+    var _cachedVoices = [];
+    var _voicesReady = false;
+    function _loadVoices() {
+      if (!window.speechSynthesis) return;
+      _cachedVoices = window.speechSynthesis.getVoices();
+      if (_cachedVoices.length > 0) _voicesReady = true;
+    }
+    _loadVoices();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.addEventListener("voiceschanged", _loadVoices);
+    }
+
+    function _pickVoice() {
+      if (!_voicesReady) _loadVoices();
+      return _cachedVoices.find(function(v){return v.lang.startsWith("en") && v.name.indexOf("Samantha")>=0;})
+        || _cachedVoices.find(function(v){return v.lang.startsWith("en") && v.localService;})
+        || _cachedVoices.find(function(v){return v.lang.startsWith("en");})
+        || null;
+    }
+
+    function _doSpeak(text, rate) {
+      if (!text || !window.speechSynthesis) return;
+      /*
+       * Chrome desktop bug: cancel() immediately before speak() silently
+       * swallows the utterance. A short setTimeout lets Chrome's internal
+       * queue settle before we push a new utterance.
+       */
+      window.speechSynthesis.cancel();
+      setTimeout(function() {
+        var u = new SpeechSynthesisUtterance(text);
+        u.rate = rate || 0.85; u.pitch = 1.0; u.volume = 1.0;
+        var v = _pickVoice();
+        if (v) u.voice = v;
+        /* Chrome long-utterance stall workaround */
+        window.speechSynthesis.speak(u);
+        var resumeTimer = setInterval(function() {
+          if (!window.speechSynthesis.speaking) { clearInterval(resumeTimer); return; }
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }, 5000);
+        u.onend = function() { clearInterval(resumeTimer); };
+        u.onerror = function() { clearInterval(resumeTimer); };
+      }, 50);
+    }
+
     function useSpeak() {
       var speak = useCallback(function(text) {
-        if (!text || !window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
         var clean = text.replace(/\s*\/\s*/g, " or ").replace(/--/g, "").replace(/!/g, "");
-        var u = new SpeechSynthesisUtterance(clean);
-        u.rate = 0.85; u.pitch = 1.0; u.volume = 1.0;
-        var voices = window.speechSynthesis.getVoices();
-        var pref = voices.find(function(v){return v.lang.startsWith("en") && v.name.indexOf("Samantha")>=0;})
-          || voices.find(function(v){return v.lang.startsWith("en") && v.localService;})
-          || voices.find(function(v){return v.lang.startsWith("en");});
-        if (pref) u.voice = pref;
-        window.speechSynthesis.speak(u);
+        _doSpeak(clean, 0.85);
       }, []);
 
       var speakSentence = useCallback(function(words) {
-        if (!words.length || !window.speechSynthesis) return;
-        window.speechSynthesis.cancel();
+        if (!words.length) return;
         var text = words.join(" ").replace(/\s*\/\s*/g, " or ").replace(/!/g, "");
-        var u = new SpeechSynthesisUtterance(text);
-        u.rate = 0.8; u.pitch = 1.0; u.volume = 1.0;
-        var voices = window.speechSynthesis.getVoices();
-        var pref = voices.find(function(v){return v.lang.startsWith("en") && v.name.indexOf("Samantha")>=0;})
-          || voices.find(function(v){return v.lang.startsWith("en") && v.localService;})
-          || voices.find(function(v){return v.lang.startsWith("en");});
-        if (pref) u.voice = pref;
-        window.speechSynthesis.speak(u);
+        _doSpeak(text, 0.8);
       }, []);
 
       return { speak: speak, speakSentence: speakSentence };
@@ -336,13 +364,6 @@
       var sRef = useState([]), sentence = sRef[0], setSentence = sRef[1];
       var iRef = useState(true), showIntro = iRef[0], setShowIntro = iRef[1];
       var tts = useSpeak();
-
-      useEffect(function() {
-        if (window.speechSynthesis) {
-          window.speechSynthesis.getVoices();
-          window.speechSynthesis.addEventListener("voiceschanged", function(){ window.speechSynthesis.getVoices(); });
-        }
-      }, []);
 
       var handleTapWord = useCallback(function(word) {
         tts.speak(word);
