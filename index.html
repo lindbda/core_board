@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP715 Learning Log 4 — Core Communication Boards</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; overflow: hidden; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #F5F5F5; }
+    button { font-family: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+  <script>
+    const { useState, useRef, useCallback, useEffect, createElement: h } = React;
+
+    /* ============================================================
+       MODIFIED FITZGERALD KEY COLORS
+       ============================================================ */
+    const COLORS = {
+      pronoun:   { bg: "#FFD54F", text: "#212121", label: "Pronouns" },
+      verb:      { bg: "#66BB6A", text: "#212121", label: "Verbs" },
+      adjective: { bg: "#42A5F5", text: "#212121", label: "Adjectives" },
+      noun:      { bg: "#FFA726", text: "#212121", label: "Nouns" },
+      prep:      { bg: "#F06292", text: "#212121", label: "Prep. & Social" },
+      question:  { bg: "#AB47BC", text: "#FFFFFF", label: "Questions" },
+      negation:  { bg: "#EF5350", text: "#FFFFFF", label: "Neg. & Important" },
+      adverb:    { bg: "#8D6E63", text: "#FFFFFF", label: "Adverbs" },
+      determ:    { bg: "#BDBDBD", text: "#212121", label: "Determiners" },
+      blank:     { bg: "#FFFFFF", text: "#9E9E9E", label: "Blank / Fringe" },
+    };
+
+    /* ============================================================
+       BOARD DATA
+       ============================================================ */
+    function W(word, cat, emoji) { return { word: word, cat: cat, emoji: emoji || "" }; }
+    function B() { return { word: "", cat: "blank", emoji: "" }; }
+
+    const BOARDS = [
+      {
+        id: "about-me",
+        title: "David's All About Me Core Board",
+        subtitle: "Personal identity & self-expression",
+        cols: 6,
+        grid: [
+          W("I","pronoun","\u{1F9D1}"),       W("want","verb","\u{1F932}"),        W("like","verb","\u{1F44D}"),       W("have","verb","\u{1F91D}"),        W("more","adjective","\u2795"),      W("yes","negation","\u2705"),
+          W("you","pronoun","\u{1F449}"),      W("help","verb","\u{1F198}"),        W("feel","verb","\u{1F4AD}"),       W("am","verb","\u{1F7F0}"),          W("good","adjective","\u{1F60A}"),   W("no / not","negation","\u274C"),
+          W("my","pronoun","\u{1F49B}"),       W("eat","verb","\u{1F37D}\uFE0F"),   W("go","verb","\u27A1\uFE0F"),      W("play","verb","\u{1F3AE}"),        W("big","adjective","\u2B06\uFE0F"),W("stop","negation","\u{1F6D1}"),
+          W("what","question","\u2753"),       W("where","question","\u{1F4CD}"),   W("please","prep","\u{1F64F}"),     W("hi / bye","prep","\u{1F44B}"),    W("done","negation","\u{1F3C1}"),   W("again","adverb","\u{1F504}"),
+          W("Mexican food","noun","\u{1F32E}"),W("video games","noun","\u{1F3AE}"), W("my cats","noun","\u{1F431}"),    W("my kids","noun","\u{1F468}\u200D\u{1F467}\u200D\u{1F466}"), W("to","prep","\u27A1\uFE0F"), B(),
+        ],
+        footer: "Row 5 = personalized fringe | Blank cells: add personal photos or symbols"
+      },
+      {
+        id: "uno",
+        title: "Uno Game \u2014 Core Board",
+        subtitle: "Social / game play communication",
+        cols: 6,
+        grid: [
+          W("I","pronoun","\u{1F9D1}"),       W("want","verb","\u{1F932}"),        W("like","verb","\u{1F44D}"),       W("more","adjective","\u2795"),      W("yes","negation","\u2705"),       W("no / not","negation","\u274C"),
+          W("you","pronoun","\u{1F449}"),      W("help","verb","\u{1F198}"),        W("go","verb","\u27A1\uFE0F"),     W("my turn","pronoun","\u{1F64B}"),  W("your turn","pronoun","\u{1F449}"),W("stop","negation","\u{1F6D1}"),
+          W("my","pronoun","\u{1F49B}"),       W("play","verb","\u{1F3B2}"),        W("pick up","verb","\u{1F446}"),    W("skip","verb","\u23ED\uFE0F"),     W("win","verb","\u{1F3C6}"),        W("done","negation","\u{1F3C1}"),
+          W("fun","adjective","\u{1F604}"),    W("again","adverb","\u{1F504}"),     W("draw","verb","\u{1F0CF}"),       W("reverse","verb","\u{1F500}"),     W("UNO!","negation","\u{1F389}"),   W("to","prep","\u27A1\uFE0F"),
+          W("card","noun","\u{1F0CF}"),        W("red","noun","\u{1F7E5}"),         W("blue","noun","\u{1F7E6}"),       W("green","noun","\u{1F7E9}"),       W("yellow","noun","\u{1F7E8}"),     W("wild","noun","\u{1F308}"),
+        ],
+        footer: "'my turn' / 'your turn' = sentence-in-one-button | Yell UNO! when you have one card left!"
+      },
+      {
+        id: "sandwich",
+        title: "Making a Sandwich \u2014 Core Board",
+        subtitle: "Following a recipe / cooking activity",
+        cols: 6,
+        grid: [
+          W("I","pronoun","\u{1F9D1}"),       W("want","verb","\u{1F932}"),        W("need","verb","\u{1F4A1}"),       W("more","adjective","\u2795"),      W("yes","negation","\u2705"),       W("no / not","negation","\u274C"),
+          W("you","pronoun","\u{1F449}"),      W("help","verb","\u{1F198}"),        W("put","verb","\u2B07\uFE0F"),     W("open","verb","\u{1F4E6}"),        W("like","verb","\u{1F44D}"),       W("stop","negation","\u{1F6D1}"),
+          W("my","pronoun","\u{1F49B}"),       W("cut","verb","\u2702\uFE0F"),      W("spread","verb","\u{1F9C8}"),     W("on","prep","\u{1F51B}"),          W("yummy","adjective","\u{1F60B}"), W("done","negation","\u{1F3C1}"),
+          W("please","prep","\u{1F64F}"),      W("to","prep","\u27A1\uFE0F"),       W("wash","verb","\u{1F9FC}"),       W("clean","adjective","\u2728"),     W("hot","adjective","\u{1F525}"),   W("cold","adjective","\u{1F9CA}"),
+          W("bread","noun","\u{1F35E}"),       W("meat","noun","\u{1F969}"),        W("cheese","noun","\u{1F9C0}"),     W("lettuce","noun","\u{1F96C}"),     W("plate","noun","\u{1F37D}\uFE0F"),W("knife","noun","\u{1F52A}"),
+        ],
+        footer: "Row 5 = sandwich-specific fringe nouns | Safety words (stop, hot) included for kitchen context"
+      },
+      {
+        id: "consent",
+        title: "Consent & Safety \u2014 Core Board",
+        subtitle: "Expressing consent, refusal, and safety",
+        cols: 5,
+        grid: [
+          W("YES","negation","\u2705"),        W("NO","negation","\u274C"),         W("STOP","negation","\u{1F6D1}"),   W("HELP","negation","\u{1F198}"),    W("tell","verb","\u{1F5E3}\uFE0F"),
+          W("I","pronoun","\u{1F9D1}"),        W("want","verb","\u{1F932}"),        W("don't want","negation","\u{1F6AB}"),W("like","verb","\u{1F44D}"),      W("don't like","negation","\u{1F44E}"),
+          W("my","pronoun","\u{1F49B}"),       W("feel","verb","\u{1F4AD}"),        W("safe","adjective","\u{1F6E1}\uFE0F"),W("scared","adjective","\u{1F628}"),W("hurt","adjective","\u{1F915}"),
+          W("go away","verb","\u{1F6B7}"),     W("my body","noun","\u{1F9CD}"),     W("okay","adjective","\u{1F44C}"),   W("not okay","negation","\u26A0\uFE0F"),W("need","verb","\u{1F4A1}"),
+          W("to","prep","\u27A1\uFE0F"), B(), B(), B(), B(),
+        ],
+        footer: "Row 1 = high-priority safety words | Row 5 = blank for trusted adult names/photos"
+      },
+      {
+        id: "community",
+        title: "Community Participation \u2014 Core Board",
+        subtitle: "Communication during community outings",
+        cols: 6,
+        grid: [
+          W("I","pronoun","\u{1F9D1}"),       W("want","verb","\u{1F932}"),        W("need","verb","\u{1F4A1}"),       W("like","verb","\u{1F44D}"),        W("more","adjective","\u2795"),      W("yes","negation","\u2705"),
+          W("you","pronoun","\u{1F449}"),      W("help","verb","\u{1F198}"),        W("go","verb","\u27A1\uFE0F"),     W("look","verb","\u{1F440}"),        W("where","question","\u{1F4CD}"),   W("no / not","negation","\u274C"),
+          W("my","pronoun","\u{1F49B}"),       W("please","prep","\u{1F64F}"),      W("thank you","prep","\u{1F91D}"), W("hi","prep","\u{1F44B}"),           W("bye","prep","\u{1F44B}"),        W("stop","negation","\u{1F6D1}"),
+          W("in","prep","\u{1F4E5}"),          W("out","prep","\u{1F4E4}"),         W("here","adverb","\u{1F4CC}"),     W("there","adverb","\u{1F449}"),     W("this","determ","\u261D\uFE0F"),   W("done","negation","\u{1F3C1}"),
+          W("store","noun","\u{1F3EA}"),       W("money","noun","\u{1F4B0}"),       W("bus","noun","\u{1F68C}"),        W("bathroom","noun","\u{1F6BB}"),    W("to","prep","\u27A1\uFE0F"), B(),
+        ],
+        footer: "Row 3 = social/pragmatic words for unfamiliar partners | Blank cells for community-specific fringe"
+      },
+    ];
+
+    const NAV_LABELS = [
+      { text: "All About Me", icon: "\u{1F9D1}" },
+      { text: "Uno Game",     icon: "\u{1F0CF}" },
+      { text: "Sandwich",     icon: "\u{1F96A}" },
+      { text: "Safety",       icon: "\u{1F6E1}\uFE0F" },
+      { text: "Community",    icon: "\u{1F3EA}" },
+    ];
+
+    /* ============================================================
+       TTS — Chrome-compatible AAC voice output
+       ============================================================
+       Chrome issues addressed:
+       1. Voices load async        → voiceschanged listener
+       2. First speak() blocked    → _unlockTTS() on user gesture
+       3. cancel()+speak() dropped → retry with onstart detection
+       4. Synth suspends silently  → keep-alive timer
+       5. Long speech cuts at ~15s → pause/resume cycle
+       ============================================================ */
+    var _cachedVoices = [];
+    var _voicesReady = false;
+    var _ttsUnlocked = false;
+    var _ttsAvailable = !!window.speechSynthesis;
+    var _keepAlive = null;
+
+    function _loadVoices() {
+      if (!_ttsAvailable) return;
+      _cachedVoices = window.speechSynthesis.getVoices();
+      if (_cachedVoices.length > 0) _voicesReady = true;
+    }
+    _loadVoices();
+    if (_ttsAvailable) {
+      window.speechSynthesis.addEventListener("voiceschanged", _loadVoices);
+    }
+
+    function _pickVoice() {
+      if (!_voicesReady) _loadVoices();
+      /* AAC-friendly English voices ordered by naturalness */
+      var prefs = ["Samantha", "Google US English", "Microsoft Zira",
+                   "Microsoft David", "Google UK English"];
+      for (var p = 0; p < prefs.length; p++) {
+        var match = _cachedVoices.find(function(v) {
+          return v.lang.startsWith("en") && v.name.indexOf(prefs[p]) >= 0;
+        });
+        if (match) return match;
+      }
+      return _cachedVoices.find(function(v){ return v.lang.startsWith("en") && v.localService; })
+        || _cachedVoices.find(function(v){ return v.lang.startsWith("en"); })
+        || _cachedVoices[0] || null;
+    }
+
+    /**
+     * Unlock TTS — MUST be called from a user gesture (click/tap).
+     * Chrome blocks speechSynthesis.speak() until at least one
+     * utterance has been initiated during a user gesture.
+     */
+    function _unlockTTS() {
+      if (!_ttsAvailable || _ttsUnlocked) return;
+      var u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0.01;
+      u.lang = "en-US";
+      window.speechSynthesis.speak(u);
+      _ttsUnlocked = true;
+      /* Keep-alive: Chrome suspends synth after ~30s of inactivity */
+      if (!_keepAlive) {
+        _keepAlive = setInterval(function() {
+          if (_ttsAvailable && !window.speechSynthesis.speaking) {
+            window.speechSynthesis.resume();
+          }
+        }, 10000);
+      }
+    }
+
+    function _buildUtterance(text, rate) {
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = rate || 0.85;
+      u.pitch = 1.0;
+      u.volume = 1.0;
+      u.lang = "en-US";
+      var v = _pickVoice();
+      if (v) u.voice = v;
+      return u;
+    }
+
+    function _doSpeak(text, rate) {
+      if (!text || !_ttsAvailable) return;
+      if (!_ttsUnlocked) _unlockTTS();
+
+      /*
+       * Chrome cancel() bug: calling cancel() then immediately speak()
+       * can silently drop the new utterance. Fix sequence:
+       * 1. cancel()  — clear queue
+       * 2. resume()  — clear stuck paused state
+       * 3. speak()   — synchronous from user gesture
+       * 4. Retry after 250ms if Chrome swallowed it (detected via onstart)
+       */
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+
+      var started = false;
+      var u = _buildUtterance(text, rate);
+      u.addEventListener("start", function() { started = true; });
+
+      window.speechSynthesis.speak(u);
+
+      /* Retry if Chrome swallowed the utterance after cancel() */
+      var retryText = text, retryRate = rate;
+      setTimeout(function() {
+        if (!started && !window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.resume();
+          window.speechSynthesis.speak(_buildUtterance(retryText, retryRate));
+        }
+      }, 250);
+
+      /* Chrome long-utterance fix: speech cuts off after ~15s */
+      if (text.indexOf(" ") !== -1) {
+        var resumeTimer = setInterval(function() {
+          if (!window.speechSynthesis.speaking) { clearInterval(resumeTimer); return; }
+          window.speechSynthesis.pause();
+          window.speechSynthesis.resume();
+        }, 5000);
+        u.addEventListener("end", function() { clearInterval(resumeTimer); });
+        u.addEventListener("error", function() { clearInterval(resumeTimer); });
+      }
+    }
+
+    function useSpeak() {
+      var speak = useCallback(function(text) {
+        var clean = text.replace(/\s*\/\s*/g, " or ").replace(/--/g, "").replace(/!/g, "");
+        _doSpeak(clean, 0.85);
+      }, []);
+
+      var speakSentence = useCallback(function(words) {
+        if (!words.length) return;
+        var text = words.join(" ").replace(/\s*\/\s*/g, " or ").replace(/!/g, "");
+        _doSpeak(text, 0.8);
+      }, []);
+
+      return { speak: speak, speakSentence: speakSentence };
+    }
+
+    /* ============================================================
+       CELL
+       ============================================================ */
+    function Cell(props) {
+      var cell = props.cell, onTap = props.onTap, size = props.size;
+      var c = COLORS[cell.cat] || COLORS.blank;
+      var isEmpty = !cell.word;
+      var ref = useState(false), flash = ref[0], setFlash = ref[1];
+
+      function handleClick() {
+        if (isEmpty) return;
+        setFlash(true);
+        onTap(cell.word);
+        setTimeout(function(){ setFlash(false); }, 200);
+      }
+
+      var emojiFontSize = size === "sm" ? "18px" : size === "md" ? "24px" : "28px";
+      var wordFontSize  = size === "sm" ? "10px" : size === "md" ? "12px" : "14px";
+
+      return h("button", {
+        onClick: handleClick,
+        disabled: isEmpty,
+        style: {
+          backgroundColor: flash ? "#FFF" : c.bg,
+          color: c.text,
+          border: isEmpty ? "2px dashed #BDBDBD" : "2px solid rgba(0,0,0,0.12)",
+          borderRadius: "10px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "1px",
+          padding: "3px 2px",
+          cursor: isEmpty ? "default" : "pointer",
+          transition: "all 0.15s ease",
+          transform: flash ? "scale(0.92)" : "scale(1)",
+          boxShadow: flash ? "inset 0 0 0 3px rgba(26,35,126,0.4)" : "0 2px 5px rgba(0,0,0,0.12)",
+          textAlign: "center",
+          lineHeight: 1.15,
+          minHeight: 0,
+          opacity: isEmpty ? 0.35 : 1,
+          overflow: "hidden",
+          fontFamily: "inherit",
+        }
+      },
+        isEmpty
+          ? h("span", { style: { fontSize: "20px", color: "#BDBDBD" } }, "+")
+          : [
+              h("span", { key: "e", style: { fontSize: emojiFontSize, lineHeight: 1.1, flexShrink: 0 } }, cell.emoji),
+              h("span", { key: "w", style: {
+                fontSize: wordFontSize, fontWeight: 800, lineHeight: 1.15,
+                letterSpacing: "0.01em", overflow: "hidden", textOverflow: "ellipsis",
+                maxWidth: "100%", padding: "0 1px",
+              }}, cell.word)
+            ]
+      );
+    }
+
+    /* ============================================================
+       SENTENCE STRIP
+       ============================================================ */
+    function SentenceStrip(props) {
+      var words = props.words, onClear = props.onClear, onSpeak = props.onSpeak, onRemoveLast = props.onRemoveLast;
+
+      var chips = words.length === 0
+        ? h("span", { style: { color: "#9E9E9E", fontSize: "14px", fontStyle: "italic" } }, "Tap words to build a sentence...")
+        : words.map(function(w, i) {
+            return h("span", { key: i, style: {
+              backgroundColor: "#E3F2FD", color: "#1565C0", padding: "4px 10px",
+              borderRadius: "16px", fontSize: "14px", fontWeight: 600, whiteSpace: "nowrap",
+            }}, w);
+          });
+
+      var buttons = words.length > 0
+        ? [
+            h("button", { key: "u", onClick: onRemoveLast, style: {
+              padding: "6px 12px", borderRadius: "8px", border: "1px solid #E0E0E0",
+              backgroundColor: "#FFF", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#757575", fontFamily: "inherit"
+            }}, "Undo"),
+            h("button", { key: "c", onClick: onClear, style: {
+              padding: "6px 12px", borderRadius: "8px", border: "1px solid #E0E0E0",
+              backgroundColor: "#FFF", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#EF5350", fontFamily: "inherit"
+            }}, "Clear"),
+            h("button", { key: "s", onClick: onSpeak, style: {
+              padding: "6px 14px", borderRadius: "8px", border: "none",
+              backgroundColor: "#1A237E", color: "#FFF", cursor: "pointer", fontSize: "13px", fontWeight: 700,
+              boxShadow: "0 2px 6px rgba(26,35,126,0.3)", fontFamily: "inherit"
+            }}, "\u{1F50A} Speak")
+          ]
+        : null;
+
+      return h("div", { style: {
+        display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px",
+        backgroundColor: "#FFF", borderRadius: "12px", border: "2px solid #E0E0E0",
+        minHeight: "48px", flexWrap: "wrap",
+      }},
+        h("div", { style: { display: "flex", alignItems: "center", gap: "6px", flex: 1, flexWrap: "wrap", minHeight: "32px" } }, chips),
+        h("div", { style: { display: "flex", gap: "6px", flexShrink: 0 } }, buttons)
+      );
+    }
+
+    /* ============================================================
+       COLOR KEY LEGEND
+       ============================================================ */
+    function ColorKey() {
+      var cats = ["pronoun","verb","adjective","noun","prep","question","negation","adverb","blank"];
+      return h("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px", justifyContent: "center", padding: "6px 0" } },
+        cats.map(function(cat) {
+          var c = COLORS[cat];
+          return h("div", { key: cat, style: { display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#616161" } },
+            h("div", { style: { width: "14px", height: "14px", borderRadius: "3px", backgroundColor: c.bg, border: "1px solid rgba(0,0,0,0.15)" } }),
+            h("span", null, c.label)
+          );
+        })
+      );
+    }
+
+    /* ============================================================
+       BOARD VIEW
+       ============================================================ */
+    function BoardView(props) {
+      var board = props.board, onTapWord = props.onTapWord;
+      var rowCount = Math.ceil(board.grid.length / board.cols);
+      var cellSize = board.cols >= 6 ? "sm" : board.cols === 5 ? "md" : "lg";
+      var gap = board.cols >= 6 ? "5px" : "6px";
+
+      return h("div", { style: { flex: 1, display: "flex", flexDirection: "column", gap: "3px", minHeight: 0 } },
+        h("div", { style: {
+          display: "grid",
+          gridTemplateColumns: "repeat(" + board.cols + ", 1fr)",
+          gridTemplateRows: "repeat(" + rowCount + ", 1fr)",
+          gap: gap, flex: 1, minHeight: 0,
+        }},
+          board.grid.map(function(cell, i) {
+            return h(Cell, { key: board.id + "-" + i, cell: cell, onTap: onTapWord, size: cellSize });
+          })
+        ),
+        h("p", { style: { fontSize: "11px", color: "#9E9E9E", textAlign: "center", margin: "2px 0 0 0", fontStyle: "italic" } }, board.footer)
+      );
+    }
+
+    /* ============================================================
+       NAV TABS
+       ============================================================ */
+    function NavTabs(props) {
+      var boards = props.boards, activeIdx = props.activeIdx, onChange = props.onChange;
+      return h("div", { style: {
+        display: "flex", gap: "4px", overflowX: "auto", padding: "2px 0", WebkitOverflowScrolling: "touch",
+      }},
+        boards.map(function(b, i) {
+          return h("button", {
+            key: b.id,
+            onClick: function(){ onChange(i); },
+            style: {
+              padding: "6px 12px", borderRadius: "20px",
+              border: i === activeIdx ? "2px solid #1A237E" : "2px solid #E0E0E0",
+              backgroundColor: i === activeIdx ? "#1A237E" : "#FFF",
+              color: i === activeIdx ? "#FFF" : "#616161",
+              fontSize: "12px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+              transition: "all 0.2s ease", flexShrink: 0, display: "flex", alignItems: "center", gap: "4px",
+              fontFamily: "inherit",
+            }
+          },
+            h("span", null, NAV_LABELS[i].icon),
+            h("span", null, NAV_LABELS[i].text)
+          );
+        })
+      );
+    }
+
+    /* ============================================================
+       MAIN APP
+       ============================================================ */
+    function CoreBoardApp() {
+      var abRef = useState(0), activeBoard = abRef[0], setActiveBoard = abRef[1];
+      var sRef = useState([]), sentence = sRef[0], setSentence = sRef[1];
+      var iRef = useState(true), showIntro = iRef[0], setShowIntro = iRef[1];
+      var tts = useSpeak();
+
+      var handleTapWord = useCallback(function(word) {
+        tts.speak(word);
+        setSentence(function(prev) { return prev.concat([word]); });
+      }, [tts.speak]);
+
+      var handleClear = function() { setSentence([]); };
+      var handleRemoveLast = function() { setSentence(function(prev) { return prev.slice(0, -1); }); };
+      var handleSpeak = function() { tts.speakSentence(sentence); };
+
+      var board = BOARDS[activeBoard];
+
+      /* INTRO SCREEN */
+      if (showIntro) {
+        var colorCats = ["pronoun","verb","adjective","noun","prep","question","negation","adverb"];
+        return h("div", { style: {
+          height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          background: "linear-gradient(135deg, #1A237E 0%, #283593 50%, #3949AB 100%)",
+          fontFamily: "'Segoe UI', system-ui, sans-serif", padding: "24px",
+        }},
+          h("div", { style: { textAlign: "center", maxWidth: "500px" } },
+            h("h1", { style: { color: "#FFF", fontSize: "clamp(28px,6vw,44px)", fontWeight: 800, margin: "0 0 8px 0", letterSpacing: "-0.5px" } }, "Learning Log 4"),
+            h("h2", { style: { color: "#BBDEFB", fontSize: "clamp(16px,3.5vw,22px)", fontWeight: 400, margin: "0 0 24px 0" } }, "Core Communication Boards"),
+            h("p", { style: { color: "#90CAF9", fontSize: "14px", margin: "0 0 32px 0" } }, "ESP715  |  David Lindberg  |  Spring 2026"),
+            h("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "6px", marginBottom: "32px" } },
+              colorCats.map(function(cat) {
+                return h("div", { key: cat, style: {
+                  display: "flex", alignItems: "center", gap: "5px",
+                  backgroundColor: "rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: "12px",
+                }},
+                  h("div", { style: { width: "12px", height: "12px", borderRadius: "3px", backgroundColor: COLORS[cat].bg } }),
+                  h("span", { style: { color: "#E8EAF6", fontSize: "11px" } }, COLORS[cat].label)
+                );
+              })
+            ),
+            h("button", {
+              onClick: function(){ _unlockTTS(); setShowIntro(false); },
+              style: {
+                padding: "14px 40px", borderRadius: "12px", border: "none",
+                backgroundColor: "#FFF", color: "#1A237E", fontSize: "16px", fontWeight: 700,
+                cursor: "pointer", boxShadow: "0 4px 16px rgba(0,0,0,0.2)", fontFamily: "inherit",
+              }
+            }, "Open Boards"),
+            h("p", { style: { color: "#7986CB", fontSize: "12px", marginTop: "20px" } }, "Tap any word to hear it spoken aloud. Build sentences, then press Speak.")
+          )
+        );
+      }
+
+      /* MAIN BOARD VIEW */
+      return h("div", { style: {
+        height: "100vh", display: "flex", flexDirection: "column",
+        fontFamily: "'Segoe UI', system-ui, sans-serif", backgroundColor: "#F5F5F5", overflow: "hidden",
+      }},
+        /* HEADER */
+        h("div", { style: { padding: "10px 16px 6px", backgroundColor: "#FFF", borderBottom: "1px solid #E0E0E0", flexShrink: 0 } },
+          h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" } },
+            h("div", null,
+              h("h1", { style: { fontSize: "18px", fontWeight: 800, color: "#1A237E", margin: 0, lineHeight: 1.2 } }, board.title),
+              h("p", { style: { fontSize: "12px", color: "#757575", margin: "2px 0 0 0" } }, board.subtitle)
+            ),
+            h("button", {
+              onClick: function(){ setShowIntro(true); setSentence([]); },
+              style: {
+                padding: "6px 12px", borderRadius: "8px", border: "1px solid #E0E0E0",
+                backgroundColor: "#FFF", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#757575", fontFamily: "inherit",
+              }
+            }, "Home")
+          ),
+          h(NavTabs, { boards: BOARDS, activeIdx: activeBoard, onChange: function(i){ setActiveBoard(i); setSentence([]); } })
+        ),
+
+        /* SENTENCE STRIP */
+        h("div", { style: { padding: "8px 16px 4px", flexShrink: 0 } },
+          h(SentenceStrip, { words: sentence, onClear: handleClear, onSpeak: handleSpeak, onRemoveLast: handleRemoveLast })
+        ),
+
+        /* BOARD GRID */
+        h("div", { style: { flex: 1, padding: "4px 16px 6px", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" } },
+          h(BoardView, { board: board, onTapWord: handleTapWord })
+        ),
+
+        /* FOOTER COLOR KEY */
+        h("div", { style: { padding: "4px 16px 8px", backgroundColor: "#FFF", borderTop: "1px solid #E0E0E0", flexShrink: 0 } },
+          h(ColorKey)
+        )
+      );
+    }
+
+    /* ============================================================
+       RENDER
+       ============================================================ */
+    ReactDOM.render(
+      React.createElement(CoreBoardApp),
+      document.getElementById("root")
+    );
+  </script>
+</body>
+</html>
